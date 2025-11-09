@@ -6,7 +6,7 @@ GitHub 활동 데이터를 분석해 자동으로 개발 블로그를 생성하�
 
 ```
 AIblog/
-├── client/          # React Frontend (To be implemented)
+├── client/          # React Frontend
 ├── server/          # Express Backend
 │   ├── src/
 │   │   ├── config/      # 환경 설정
@@ -113,24 +113,7 @@ npm run dev
 - helmet - 보안 미들웨어
 - morgan - 로깅
 
-### Frontend (예정)
+### Frontend
 - React 18
 - Vite
 - TailwindCSS
-
-## 환경 변수 관리 (중요!)
-
-**보안을 위해 절대 `.env` 파일을 커밋하지 마세요!**
-
-1. `.env.example` 파일을 복사하여 `.env` 파일 생성
-2. 실제 API 키와 토큰으로 값 채우기
-3. `.env` 파일은 `.gitignore`에 의해 자동으로 제외됨
-
-**필요한 환경 변수:**
-- `GITHUB_TOKEN` - GitHub Personal Access Token
-- `OPENAI_API_KEY` 또는 `GEMINI_API_KEY` - LLM API 키
-- `CORS_ORIGIN` - 프론트엔드 URL (기본: http://localhost:5173)
-
-## 라이선스
-
-MIT
