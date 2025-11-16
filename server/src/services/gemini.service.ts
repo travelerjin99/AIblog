@@ -109,6 +109,59 @@ Format the output as markdown with the title as an H1 heading.`;
 }
 
 /**
+ * Generate a detailed blog post from a single GitHub commit
+ */
+export async function generateBlogPostFromSingleCommit(
+  commit: GitHubCommit,
+  owner: string,
+  repo: string
+): Promise<string> {
+  if (!config.llm.geminiApiKey) {
+    throw new AppError(500, 'Gemini API key is not configured');
+  }
+
+  // Extract commit details
+  const commitMessage = commit.commit.message;
+  const author = commit.commit.author.name;
+  const date = new Date(commit.commit.author.date).toLocaleDateString();
+  const sha = commit.sha.substring(0, 7);
+
+  const prompt = `You are a technical blog writer. Write a detailed and engaging blog post about the following GitHub commit from the repository "${owner}/${repo}".
+
+Commit Details:
+- Message: ${commitMessage}
+- Author: ${author}
+- Date: ${date}
+- SHA: ${sha}
+
+Please write a comprehensive blog post that:
+1. Has a catchy, descriptive title (use ## H2 heading)
+2. Starts with an introduction that provides context about what this commit accomplishes
+3. Includes a "Technical Implementation" section explaining what was changed and how
+4. Has an "Impact & Benefits" section discussing why this change matters
+5. Ends with a brief conclusion
+6. Is written in a professional but approachable tone
+7. Is approximately 400-600 words
+8. Uses markdown formatting with proper headings, bullet points, and emphasis where appropriate
+
+Focus on making the technical details accessible while still being informative for developers. If the commit message is brief, use your knowledge to expand on what such changes typically involve.
+
+Format the output as clean markdown.`;
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    return text;
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    throw new AppError(500, 'Failed to generate blog post with Gemini');
+  }
+}
+
+/**
  * Simple chat with Gemini
  */
 export async function chatWithGemini(message: string): Promise<string> {

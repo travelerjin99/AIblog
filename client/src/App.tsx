@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BlogPostModal from './components/BlogPostModal';
 
 interface Commit {
   sha: string;
@@ -24,6 +25,13 @@ function App() {
   const [chatResponse, setChatResponse] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState('');
+
+  // Blog post state
+  const [selectedCommit, setSelectedCommit] = useState<Commit | null>(null);
+  const [blogPost, setBlogPost] = useState('');
+  const [blogLoading, setBlogLoading] = useState(false);
+  const [blogError, setBlogError] = useState('');
+  const [showBlogModal, setShowBlogModal] = useState(false);
 
   const fetchCommits = async () => {
     if (!repo) {
@@ -83,6 +91,42 @@ function App() {
     } finally {
       setChatLoading(false);
     }
+  };
+
+  const generateBlogPost = async (commit: Commit) => {
+    setSelectedCommit(commit);
+    setBlogPost('');
+    setBlogError('');
+    setBlogLoading(true);
+    setShowBlogModal(true);
+
+    try {
+      const response = await fetch('http://localhost:3000/api/llm/generate/commit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ commit, owner, repo }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setBlogPost(data.data.blogPost);
+      } else {
+        setBlogError(data.error || 'Failed to generate blog post');
+      }
+    } catch (err) {
+      setBlogError('Failed to connect to server. Make sure the backend is running on port 3000.');
+    } finally {
+      setBlogLoading(false);
+    }
+  };
+
+  const closeBlogModal = () => {
+    setShowBlogModal(false);
+    setBlogPost('');
+    setBlogError('');
+    setSelectedCommit(null);
   };
 
   return (
@@ -169,14 +213,23 @@ function App() {
                         </span>
                       </div>
                     </div>
-                    <a
-                      href={commit.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-4 px-4 py-2 bg-blue-600/80 hover:bg-blue-600 text-white text-sm rounded-lg transition"
-                    >
-                      View
-                    </a>
+                    <div className="ml-4 flex gap-2">
+                      <button
+                        onClick={() => generateBlogPost(commit)}
+                        className="px-4 py-2 bg-purple-600/80 hover:bg-purple-600 text-white text-sm rounded-lg transition duration-200 flex items-center gap-2"
+                      >
+                        <span>✨</span>
+                        <span>Generate Blog Post</span>
+                      </button>
+                      <a
+                        href={commit.html_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-blue-600/80 hover:bg-blue-600 text-white text-sm rounded-lg transition"
+                      >
+                        View
+                      </a>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -241,6 +294,16 @@ function App() {
             )}
           </div>
         </div>
+
+        {/* Blog Post Modal */}
+        <BlogPostModal
+          isOpen={showBlogModal}
+          onClose={closeBlogModal}
+          blogPost={blogPost}
+          commit={selectedCommit}
+          loading={blogLoading}
+          error={blogError}
+        />
       </div>
     </div>
   );

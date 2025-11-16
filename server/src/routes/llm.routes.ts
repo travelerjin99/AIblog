@@ -1,5 +1,5 @@
 import express from 'express';
-import { generateFromCommits, generateFromPRs, chat } from '../controllers/llm.controller.js';
+import { generateFromCommits, generateFromPRs, generateFromSingleCommit, chat } from '../controllers/llm.controller.js';
 
 const router = express.Router();
 
@@ -18,6 +18,16 @@ router.get('/generate/commits/:owner/:repo', generateFromCommits);
  * @query   limit - Number of PRs to analyze (default: 10)
  */
 router.get('/generate/prs/:owner/:repo', generateFromPRs);
+
+/**
+ * @route   POST /api/llm/generate/commit
+ * @desc    Generate blog post from a single commit
+ * @access  Public
+ * @body    commit - The GitHub commit object
+ * @body    owner - Repository owner
+ * @body    repo - Repository name
+ */
+router.post('/generate/commit', generateFromSingleCommit);
 
 /**
  * @route   POST /api/llm/chat

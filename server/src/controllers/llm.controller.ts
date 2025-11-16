@@ -1,7 +1,8 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../middlewares/errorHandler.js';
-import { generateBlogPostFromCommits, generateBlogPostFromPRs, chatWithGemini } from '../services/gemini.service.js';
+import { generateBlogPostFromCommits, generateBlogPostFromPRs, generateBlogPostFromSingleCommit, chatWithGemini } from '../services/gemini.service.js';
 import { fetchCommitsGraphQL, fetchPullRequestsGraphQL } from '../services/github.service.js';
+import type { GitHubCommit } from '../types/index.js';
 
 /**
  * Generate a blog post from repository commits
@@ -47,6 +48,37 @@ export const generateFromPRs = asyncHandler(async (req: Request, res: Response) 
       blogPost,
       prsAnalyzed: pullRequests.length,
       repository: `${owner}/${repo}`,
+    },
+  });
+});
+
+/**
+ * Generate a blog post from a single commit
+ * POST /api/llm/generate/commit
+ */
+export const generateFromSingleCommit = asyncHandler(async (req: Request, res: Response) => {
+  const { commit, owner, repo } = req.body as { commit: GitHubCommit; owner: string; repo: string };
+
+  if (!commit || !owner || !repo) {
+    res.status(400).json({
+      success: false,
+      error: 'Commit data, owner, and repo are required',
+    });
+    return;
+  }
+
+  // Generate blog post using Gemini
+  const blogPost = await generateBlogPostFromSingleCommit(commit, owner, repo);
+
+  res.json({
+    success: true,
+    data: {
+      blogPost,
+      commit: {
+        sha: commit.sha.substring(0, 7),
+        message: commit.commit.message.split('\n')[0],
+        author: commit.commit.author.name,
+      },
     },
   });
 });
