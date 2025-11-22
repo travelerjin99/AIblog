@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import CommitDetailPanel from './components/CommitDetailPanel';
-import SavedPostsList from './components/SavedPostsList';
+import BlogPostsPage from './components/BlogPostsPage';
 import { useCommits, useSummaryGenerator } from './hooks';
 import { useBlog } from './context/BlogContext';
-import type { Commit, BlogPost } from './types';
+import type { Commit } from './types';
+
+type Page = 'commits' | 'saved-posts';
 
 function App() {
   const [owner, setOwner] = useState('travelerjin99');
   const [repo, setRepo] = useState('');
   const [selectedCommit, setSelectedCommit] = useState<Commit | null>(null);
-  const [showSavedPosts, setShowSavedPosts] = useState(false);
+  const [currentPage, setCurrentPage] = useState<Page>('commits');
 
   // Custom hooks
   const { commits, status: commitsStatus, error: commitsError, fetchCommits } = useCommits();
@@ -44,15 +46,14 @@ function App() {
     alert('Blog post saved successfully!');
   };
 
-  const handleSelectSavedPost = (post: BlogPost) => {
-    // For now, just close the modal and show a message
-    setShowSavedPosts(false);
-    navigator.clipboard.writeText(post.content);
-    alert('Post content copied to clipboard!');
-  };
-
   const isLoading = commitsStatus === 'loading';
 
+  // If on saved posts page, render that instead
+  if (currentPage === 'saved-posts') {
+    return <BlogPostsPage onBack={() => setCurrentPage('commits')} />;
+  }
+
+  // Main commits page
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -63,7 +64,7 @@ function App() {
             <p className="text-gray-300">Generate AI summaries from GitHub commits</p>
           </div>
           <button
-            onClick={() => setShowSavedPosts(true)}
+            onClick={() => setCurrentPage('saved-posts')}
             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition duration-200 flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,14 +180,6 @@ function App() {
             />
           </div>
         </div>
-
-        {/* Saved Posts Modal */}
-        {showSavedPosts && (
-          <SavedPostsList
-            onSelectPost={handleSelectSavedPost}
-            onClose={() => setShowSavedPosts(false)}
-          />
-        )}
       </div>
     </div>
   );
