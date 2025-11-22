@@ -1,118 +1,83 @@
 import { useState } from 'react';
 import CommitDetailPanel from './components/CommitDetailPanel';
-
-interface Commit {
-  sha: string;
-  commit: {
-    message: string;
-    author: {
-      name: string;
-      date: string;
-    };
-  };
-  html_url: string;
-}
+import SavedPostsList from './components/SavedPostsList';
+import { useCommits, useSummaryGenerator } from './hooks';
+import { useBlog } from './context/BlogContext';
+import type { Commit, BlogPost } from './types';
 
 function App() {
   const [owner, setOwner] = useState('travelerjin99');
   const [repo, setRepo] = useState('');
-  const [commits, setCommits] = useState<Commit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  // Selected commit and blog post state
   const [selectedCommit, setSelectedCommit] = useState<Commit | null>(null);
-  const [blogPost, setBlogPost] = useState('');
-  const [blogLoading, setBlogLoading] = useState(false);
-  const [blogError, setBlogError] = useState('');
+  const [showSavedPosts, setShowSavedPosts] = useState(false);
 
-  const fetchCommits = async () => {
-    if (!repo) {
-      setError('Please enter a repository name');
-      return;
-    }
+  // Custom hooks
+  const { commits, status: commitsStatus, error: commitsError, fetchCommits } = useCommits();
+  const { summary, status: summaryStatus, error: summaryError, generateSummary, reset: resetSummary } = useSummaryGenerator();
+  const { savePost, state: blogState } = useBlog();
 
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch(
-        `http://localhost:3000/api/github/repos/${owner}/${repo}/commits?limit=10`
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setCommits(data.data);
-      } else {
-        setError(data.error || 'Failed to fetch commits');
-      }
-    } catch (err) {
-      setError('Failed to connect to server. Make sure the backend is running on port 3000.');
-    } finally {
-      setLoading(false);
-    }
+  const handleFetchCommits = () => {
+    fetchCommits(owner, repo);
   };
 
   const selectCommit = (commit: Commit) => {
     setSelectedCommit(commit);
-    setBlogPost('');
-    setBlogError('');
+    resetSummary();
   };
 
-  const generateSummary = async (commit: Commit) => {
-    setBlogPost('');
-    setBlogError('');
-    setBlogLoading(true);
-
-    try {
-      const response = await fetch('http://localhost:3000/api/llm/generate/commit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ commit, owner, repo }),
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        setBlogPost(data.data.blogPost);
-      } else {
-        setBlogError(data.error || 'Failed to generate summary');
-      }
-    } catch (err) {
-      setBlogError('Failed to connect to server. Make sure the backend is running on port 3000.');
-    } finally {
-      setBlogLoading(false);
-    }
+  const handleGenerateSummary = (commit: Commit) => {
+    generateSummary(commit, owner, repo);
   };
 
-  const handleSaveAsBlogPost = (content: string) => {
-    // TODO: Implement save functionality - could save to localStorage or backend
-    console.log('Saving blog post:', content);
-    navigator.clipboard.writeText(content);
-    alert('Blog post copied to clipboard!');
+  const handleSaveAsBlogPost = (title: string, content: string) => {
+    if (!selectedCommit) return;
+
+    savePost({
+      title,
+      content,
+      commitSha: selectedCommit.sha,
+      commitMessage: selectedCommit.commit.message,
+      author: selectedCommit.commit.author.name,
+      repository: `${owner}/${repo}`,
+    });
+
+    alert('Blog post saved successfully!');
   };
+
+  const handleSelectSavedPost = (post: BlogPost) => {
+    // For now, just close the modal and show a message
+    setShowSavedPosts(false);
+    navigator.clipboard.writeText(post.content);
+    alert('Post content copied to clipboard!');
+  };
+
+  const isLoading = commitsStatus === 'loading';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 py-8 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            Smart Blog
-          </h1>
-          <p className="text-gray-300">
-            Generate AI summaries from GitHub commits
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-white mb-2">Smart Blog</h1>
+            <p className="text-gray-300">Generate AI summaries from GitHub commits</p>
+          </div>
+          <button
+            onClick={() => setShowSavedPosts(true)}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition duration-200 flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            Saved Posts ({blogState.posts.data.length})
+          </button>
         </div>
 
         {/* Input Form */}
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-6 shadow-xl border border-white/20">
           <div className="flex gap-4 items-end">
             <div className="flex-1">
-              <label className="block text-white font-medium mb-2">
-                Repository
-              </label>
+              <label className="block text-white font-medium mb-2">Repository</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -126,24 +91,24 @@ function App() {
                   type="text"
                   value={repo}
                   onChange={(e) => setRepo(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && fetchCommits()}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFetchCommits()}
                   className="flex-1 px-4 py-2 rounded-lg bg-white/20 text-white placeholder-gray-300 border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400"
                   placeholder="repository"
                 />
               </div>
             </div>
             <button
-              onClick={fetchCommits}
-              disabled={loading}
+              onClick={handleFetchCommits}
+              disabled={isLoading}
               className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold rounded-lg transition duration-200"
             >
-              {loading ? 'Loading...' : 'Fetch'}
+              {isLoading ? 'Loading...' : 'Fetch'}
             </button>
           </div>
 
-          {error && (
+          {commitsError && (
             <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
-              {error}
+              {commitsError}
             </div>
           )}
         </div>
@@ -156,7 +121,7 @@ function App() {
               Recent Commits {commits.length > 0 && `(${commits.length})`}
             </h2>
 
-            {commits.length === 0 && !loading && (
+            {commits.length === 0 && !isLoading && (
               <div className="text-center text-gray-400 py-12">
                 <svg className="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -190,7 +155,7 @@ function App() {
                       onClick={(e) => {
                         e.stopPropagation();
                         selectCommit(commit);
-                        generateSummary(commit);
+                        handleGenerateSummary(commit);
                       }}
                       className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition duration-200 whitespace-nowrap"
                     >
@@ -206,14 +171,22 @@ function App() {
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 shadow-xl border border-white/20 min-h-[500px]">
             <CommitDetailPanel
               commit={selectedCommit}
-              blogPost={blogPost}
-              loading={blogLoading}
-              error={blogError}
-              onGenerateSummary={generateSummary}
+              summary={summary}
+              status={summaryStatus}
+              error={summaryError}
+              onGenerateSummary={handleGenerateSummary}
               onSaveAsBlogPost={handleSaveAsBlogPost}
             />
           </div>
         </div>
+
+        {/* Saved Posts Modal */}
+        {showSavedPosts && (
+          <SavedPostsList
+            onSelectPost={handleSelectSavedPost}
+            onClose={() => setShowSavedPosts(false)}
+          />
+        )}
       </div>
     </div>
   );

@@ -1,43 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-interface Commit {
-  sha: string;
-  commit: {
-    message: string;
-    author: {
-      name: string;
-      date: string;
-    };
-  };
-  html_url: string;
-}
+import type { Commit, AsyncStatus } from '../types';
 
 interface CommitDetailPanelProps {
   commit: Commit | null;
-  blogPost: string;
-  loading: boolean;
-  error: string;
+  summary: string;
+  status: AsyncStatus;
+  error: string | null;
   onGenerateSummary: (commit: Commit) => void;
-  onSaveAsBlogPost: (content: string) => void;
+  onSaveAsBlogPost: (title: string, content: string) => void;
 }
 
 const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
   commit,
-  blogPost,
-  loading,
+  summary,
+  status,
   error,
   onGenerateSummary,
   onSaveAsBlogPost,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState(blogPost);
+  const [editedContent, setEditedContent] = useState(summary);
 
   useEffect(() => {
-    setEditedContent(blogPost);
+    setEditedContent(summary);
     setIsEditing(false);
-  }, [blogPost]);
+  }, [summary]);
 
   if (!commit) {
     return (
@@ -53,8 +42,13 @@ const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
   }
 
   const handleSave = () => {
-    onSaveAsBlogPost(editedContent);
+    const title = commit.commit.message.split('\n')[0];
+    onSaveAsBlogPost(title, editedContent);
   };
+
+  const isLoading = status === 'loading';
+  const isError = status === 'error';
+  const hasSummary = summary && status === 'success';
 
   return (
     <div className="h-full flex flex-col">
@@ -77,7 +71,7 @@ const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-white">AI Summary</h3>
           <div className="flex gap-2">
-            {!blogPost && !loading && (
+            {!hasSummary && !isLoading && (
               <button
                 onClick={() => onGenerateSummary(commit)}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition duration-200"
@@ -85,7 +79,7 @@ const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
                 Generate Summary
               </button>
             )}
-            {blogPost && !loading && (
+            {hasSummary && !isLoading && (
               <>
                 <button
                   onClick={() => setIsEditing(!isEditing)}
@@ -106,7 +100,7 @@ const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-white/5 rounded-lg p-4 min-h-0">
-          {loading && (
+          {isLoading && (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
               <p className="text-white">Generating summary...</p>
@@ -114,20 +108,20 @@ const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
             </div>
           )}
 
-          {error && (
+          {isError && error && (
             <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 text-red-200">
               <h4 className="font-semibold mb-2">Error</h4>
               <p>{error}</p>
             </div>
           )}
 
-          {!loading && !error && !blogPost && (
+          {!isLoading && !isError && !hasSummary && (
             <div className="text-center text-gray-400 py-12">
               <p>Click "Generate Summary" to create an AI summary for this commit</p>
             </div>
           )}
 
-          {!loading && !error && blogPost && (
+          {!isLoading && !isError && hasSummary && (
             isEditing ? (
               <textarea
                 value={editedContent}
@@ -215,7 +209,7 @@ const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
         </div>
 
         {/* Save Button */}
-        {blogPost && !loading && (
+        {hasSummary && !isLoading && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <button
               onClick={handleSave}
